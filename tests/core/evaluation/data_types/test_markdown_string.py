@@ -1,8 +1,12 @@
 """Unit tests for MarkdownString data type."""
 
+from functools import partial
+
 import pytest
 
 from webarena_verified.core.evaluation.data_types import MarkdownString
+from webarena_verified.types.config import WebArenaVerifiedConfig
+from webarena_verified.types.task import WebArenaSite
 
 # ===== Basic Functionality Tests =====
 
@@ -221,6 +225,37 @@ def test_real_world_example():
     # Should normalize to the same value
     assert markdown1 == markdown2
     assert markdown1.normalized == markdown2.normalized
+
+
+@pytest.fixture
+def derender_url_fct():
+    """Derender function as NetworkEventEvaluator passes it for a GitLab and Reddit task."""
+    config = WebArenaVerifiedConfig.model_validate(
+        {"environments": {"gitlab": {"urls": ["http://localhost:8023"]}, "reddit": {"urls": ["http://localhost:9999"]}}}
+    )
+    return partial(config.derender_url, sites=(WebArenaSite.GITLAB, WebArenaSite.REDDIT))
+
+
+def test_site_urls_derendered(derender_url_fct):
+    """Test that links with the site's address match expected links with its template (task 564)."""
+    # Expected README content of task 564
+    expected = (
+        "# live_a_life\n\n## Most Active DIY Threads\n\n"
+        "- [Separate glued plastic parts](__REDDIT__/f/DIY/118903/separate-glued-plastic-parts)\n"
+        "- [How would you fix this dryer vent mess?](__REDDIT__/f/DIY/118923/how-would-you-fix-this-dryer-vent-mess)\n"
+        "- [Basement Bulkhead/Soffit + Wall Framing](__REDDIT__/f/DIY/118935/basement-bulkhead-soffit-wall-framing)"
+    )
+    # README content committed by an agent run on task 564
+    actual = (
+        "# live_a_life\n\n## Most Active DIY Threads\n\n"
+        "- [Separate glued plastic parts](http://localhost:9999/f/DIY/118903/separate-glued-plastic-parts)\n"
+        "- [How would you fix this dryer vent mess?](http://localhost:9999/f/DIY/118923/how-would-you-fix-this-dryer-vent-mess)\n"
+        "- [Basement Bulkhead/Soffit + Wall Framing](http://localhost:9999/f/DIY/118935/basement-bulkhead-soffit-wall-framing)\n"
+    )
+
+    assert MarkdownString(expected, derender_url_fct=derender_url_fct) == MarkdownString(
+        actual, derender_url_fct=derender_url_fct
+    )
 
 
 # ===== Alternatives Support Tests =====

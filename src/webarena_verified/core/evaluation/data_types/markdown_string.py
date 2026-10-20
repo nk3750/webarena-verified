@@ -1,5 +1,6 @@
 """Markdown string data type for normalized comparison."""
 
+import contextlib
 import re
 from typing import Any
 
@@ -38,8 +39,14 @@ class MarkdownString(NormalizedType[str]):
         - Case sensitivity
         - Special characters
 
-        We only strip leading/trailing whitespace.
+        We only derender site URLs (as the base class does) and strip leading/trailing whitespace.
         """
+        # Derender site URLs (best effort), so a link written with the site's address matches
+        # an expected link written with its template (e.g. __REDDIT__/f/DIY/...)
+        if self.derender_url_fct is not None and "http" in s:
+            with contextlib.suppress(Exception):
+                s = self.derender_url_fct(s, strict=False)
+
         return s.strip()
 
     def _type_normalize(self, value: Any) -> str:
